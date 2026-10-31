@@ -239,6 +239,16 @@ textarea{min-height:110px;resize:vertical}
 .chips input:checked+span{background:var(--green);color:var(--cream);border-color:var(--green)}
 form .btn{width:100%;margin-top:.4rem}
 .form-note{font-size:.8rem;color:var(--muted);text-align:center}
+.form-error{color:#A33A2B;font-size:.88rem;font-weight:500;min-height:0}
+.form-error:empty{display:none}
+form .btn:disabled{opacity:.7;cursor:wait;transform:none}
+.sent{text-align:center;padding:2.5rem 1rem;display:grid;justify-items:center;align-content:center;gap:1rem;height:100%}
+.sent-ic{width:72px;height:72px;border-radius:50%;background:var(--green);color:var(--cream);display:grid;place-items:center;animation:pop .5s ease}
+.sent-ic svg{width:34px;height:34px}
+.sent h3{font-size:1.6rem}
+.sent p{color:var(--muted);max-width:340px}
+.sent .btn{width:auto;margin-top:.4rem}
+@keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
 
 /* Footer */
 footer{background:var(--green-2);color:var(--beige);padding:4.5rem 0 2rem}
@@ -685,6 +695,7 @@ footer{background:var(--green-2);color:var(--beige);padding:4.5rem 0 2rem}
         <label>Area / City<input name="city" placeholder="e.g. New Cairo"></label>
       </div>
       <label>Message<textarea name="msg" placeholder="Tell us about your surfaces, sizes or anything else"></textarea></label>
+      <p class="form-error" id="formError" role="alert"></p>
       <button class="btn btn-primary" type="submit">Send Request</button>
       <p class="form-note">Prefer to talk? Call <a href="tel:+201061613777"><b>0106 161 3777</b></a></p>
     </form>
@@ -742,14 +753,38 @@ cmp.querySelector('input').addEventListener('input', e => cmp.style.setProperty(
 const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), {threshold: .12});
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
-// Quote form -> email
-document.getElementById('quote').addEventListener('submit', e => {
+// Quote form -> sends to sales@prolongeg.com and shows a message
+const form = document.getElementById('quote');
+const note = document.getElementById('formError');
+form.addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target, d = new FormData(f);
-  if (!d.get('name') || !d.get('phone')) { alert('Please add your name and phone number.'); return; }
-  const svcs = d.getAll('svc').join(', ') || 'Not specified';
-  const body = `Name: ${d.get('name')}\nPhone: ${d.get('phone')}\nServices: ${svcs}\nSpace: ${d.get('space')}\nArea: ${d.get('city')}\n\n${d.get('msg')}`;
-  location.href = `mailto:sales@prolongeg.com?subject=${encodeURIComponent('Quote request - ' + d.get('name'))}&body=${encodeURIComponent(body)}`;
+  const d = new FormData(form), btn = form.querySelector('button[type=submit]');
+  note.textContent = '';
+  if (!d.get('name').trim() || !d.get('phone').trim()) { note.textContent = 'Please add your name and phone number.'; return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  const payload = {
+    Name: d.get('name'), Phone: d.get('phone'),
+    Services: d.getAll('svc').join(', ') || 'Not specified',
+    Space: d.get('space'), Area: d.get('city') || '-', Message: d.get('msg') || '-',
+    _subject: 'New quote request from the website - ' + d.get('name'),
+    _template: 'table', _captcha: 'false'
+  };
+  try {
+    const r = await fetch('https://formsubmit.co/ajax/sales@prolongeg.com', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify(payload)
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || String(j.success) === 'false') throw new Error();
+    form.innerHTML = `<div class="sent">
+      <div class="sent-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div>
+      <h3>Thank you, ${d.get('name').replace(/[<>&"]/g, '')}!</h3>
+      <p>We received your request. Our team will contact you soon on <b>${d.get('phone').replace(/[<>&"]/g, '')}</b>.</p>
+      <a class="btn btn-ghost" href="https://wa.me/201061613777" target="_blank" rel="noopener">Chat on WhatsApp</a>
+    </div>`;
+  } catch {
+    btn.disabled = false; btn.textContent = 'Send Request';
+    note.innerHTML = 'Something went wrong. Please call <a href="tel:+201061613777"><b>0106 161 3777</b></a> or message us on WhatsApp.';
+  }
 });
 </script>
 </body>
