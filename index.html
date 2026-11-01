@@ -676,11 +676,16 @@ footer{background:var(--green-2);color:var(--beige);padding:4.5rem 0 2rem}
       </div>
     </div>
 
-    <form id="quote" class="reveal" novalidate>
+    <form id="quote" class="reveal" action="https://formsubmit.co/sales@prolongeg.com" method="POST" novalidate>
+      <input type="hidden" name="_subject" value="New quote request from prolongeg.com">
+      <input type="hidden" name="_template" value="table">
+      <input type="hidden" name="_captcha" value="false">
+      <input type="hidden" name="_next" id="nextUrl" value="https://prolongeg.com/?sent=1#contact">
+      <input type="hidden" name="Services" id="servicesField" value="">
       <h3>Request a free quote</h3>
       <div class="row">
-        <label>Full name<input name="name" required placeholder="Your name"></label>
-        <label>Phone<input name="phone" type="tel" required placeholder="01xxxxxxxxx"></label>
+        <label>Full name<input name="Name" required placeholder="Your name"></label>
+        <label>Phone<input name="Phone" type="tel" required placeholder="01xxxxxxxxx"></label>
       </div>
       <label>What do you want to protect?</label>
       <div class="chips">
@@ -690,11 +695,11 @@ footer{background:var(--green-2);color:var(--beige);padding:4.5rem 0 2rem}
       </div>
       <div class="row">
         <label>Space type
-          <select name="space"><option>Home</option><option>Office</option><option>Showroom</option><option>Commercial</option></select>
+          <select name="Space"><option>Home</option><option>Office</option><option>Showroom</option><option>Commercial</option></select>
         </label>
-        <label>Area / City<input name="city" placeholder="e.g. New Cairo"></label>
+        <label>Area / City<input name="Area" placeholder="e.g. New Cairo"></label>
       </div>
-      <label>Message<textarea name="msg" placeholder="Tell us about your surfaces, sizes or anything else"></textarea></label>
+      <label>Message<textarea name="Message" placeholder="Tell us about your surfaces, sizes or anything else"></textarea></label>
       <p class="form-error" id="formError" role="alert"></p>
       <button class="btn btn-primary" type="submit">Send Request</button>
       <p class="form-note">Prefer to talk? Call <a href="tel:+201061613777"><b>0106 161 3777</b></a></p>
@@ -753,38 +758,42 @@ cmp.querySelector('input').addEventListener('input', e => cmp.style.setProperty(
 const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), {threshold: .12});
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
-// Quote form -> sends to sales@prolongeg.com and shows a message
+// Quote form -> normal submit to FormSubmit (same as El Shams), then thank-you on return
 const form = document.getElementById('quote');
 const note = document.getElementById('formError');
-form.addEventListener('submit', async e => {
-  e.preventDefault();
-  const d = new FormData(form), btn = form.querySelector('button[type=submit]');
+const thankYou = (name) => {
+  const safe = (name || '').replace(/[<>&"]/g, '');
+  form.innerHTML = `<div class="sent">
+    <div class="sent-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div>
+    <h3>Thank you${safe ? ', ' + safe : ''}!</h3>
+    <p>We received your request. Our team will contact you soon.</p>
+    <a class="btn btn-ghost" href="https://wa.me/201061613777" target="_blank" rel="noopener">Chat on WhatsApp</a>
+  </div>`;
+};
+// come back to the same page after sending
+document.getElementById('nextUrl').value = location.origin + location.pathname + '?sent=1#contact';
+if (new URLSearchParams(location.search).get('sent') === '1') {
+  let n = ''; try { n = sessionStorage.getItem('prolongName') || ''; sessionStorage.removeItem('prolongName'); } catch (e) {}
+  thankYou(n);
+  history.replaceState(null, '', location.pathname + '#contact');
+  setTimeout(() => document.getElementById('contact').scrollIntoView(), 50);
+}
+form.addEventListener('submit', e => {
   note.textContent = '';
-  if (!d.get('name').trim() || !d.get('phone').trim()) { note.textContent = 'Please add your name and phone number.'; return; }
-  btn.disabled = true; btn.textContent = 'Sending...';
-  const payload = {
-    Name: d.get('name'), Phone: d.get('phone'),
-    Services: d.getAll('svc').join(', ') || 'Not specified',
-    Space: d.get('space'), Area: d.get('city') || '-', Message: d.get('msg') || '-',
-    _subject: 'New quote request from the website - ' + d.get('name'),
-    _template: 'table', _captcha: 'false'
-  };
-  try {
-    const r = await fetch('https://formsubmit.co/ajax/sales@prolongeg.com', {
-      method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify(payload)
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || String(j.success) === 'false') throw new Error();
-    form.innerHTML = `<div class="sent">
-      <div class="sent-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div>
-      <h3>Thank you, ${d.get('name').replace(/[<>&"]/g, '')}!</h3>
-      <p>We received your request. Our team will contact you soon on <b>${d.get('phone').replace(/[<>&"]/g, '')}</b>.</p>
-      <a class="btn btn-ghost" href="https://wa.me/201061613777" target="_blank" rel="noopener">Chat on WhatsApp</a>
-    </div>`;
-  } catch {
-    btn.disabled = false; btn.textContent = 'Send Request';
-    note.innerHTML = 'Something went wrong. Please call <a href="tel:+201061613777"><b>0106 161 3777</b></a> or message us on WhatsApp.';
-  }
+  const name = form.Name.value.trim(), phone = form.Phone.value.trim();
+  if (!name || !phone) { e.preventDefault(); note.textContent = 'Please add your name and phone number.'; return; }
+  const svcs = [...form.querySelectorAll('input[name=svc]:checked')].map(i => i.value);
+  document.getElementById('servicesField').value = svcs.join(', ') || 'Not specified';
+  form.querySelectorAll('input[name=svc]').forEach(i => i.disabled = true);
+  try { sessionStorage.setItem('prolongName', name); } catch (e) {}
+  const btn = form.querySelector('button[type=submit]'); btn.textContent = 'Sending...';
+  setTimeout(() => { btn.disabled = true; }, 0);
+});
+// if the visitor comes back with the browser Back button, unlock the form again
+window.addEventListener('pageshow', () => {
+  const btn = form.querySelector('button[type=submit]');
+  if (btn) { btn.disabled = false; btn.textContent = 'Send Request'; }
+  form.querySelectorAll('input[name=svc]').forEach(i => i.disabled = false);
 });
 </script>
 </body>
